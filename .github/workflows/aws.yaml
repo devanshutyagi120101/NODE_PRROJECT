@@ -1,0 +1,72 @@
+name: Deploy to ECS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          region: ${{ secrets.AWS_REGION }}
+
+      - name: Build, tag, and push the Docker image
+        env:
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          docker build -t $ECR_REPOSITORY:latest .
+          docker tag $ECR_REPOSITORY:latest $ECR_REPOSITORY:latest
+          docker push $ECR_REPOSITORY:latest
+
+  deploy-to-ecs:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.0
+
+      - name: Initialize Terraform
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Apply Terraform
+        working-directory: ./terraform
+        env:
+          TF_VAR_ecr_repository_name: ${{ secrets.ECR_REPOSITORY }}
+          TF_VAR_subnet_ids: ${{ secrets.SUBNET_IDS }}
+          TF_VAR_security_group_id: ${{ secrets.SECURITY_GROUP_ID }}
+        run: terraform apply -auto-approve
+
+      - name: Update ECS Service with new Task Definition
+        run: |
+          cluster_name=$(terraform output -raw ecs_cluster_name)
+          service_name=$(terraform output -raw ecs_service_name)
+          task_definition_arn=$(terraform output -raw ecs_task_definition_arn)
+
+          aws ecs update-service \
+            --cluster $cluster_name \
+            --service $service_name \
+            --force-new-deployment
