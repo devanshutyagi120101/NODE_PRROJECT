@@ -8,9 +8,6 @@ This repository contains a Node.js application that is containerized using Docke
 - aws-access-key-id
 - aws-secret-access-key
 - aws-region
-- TF_VAR_ecr_repository_name
-- TF_VAR_subnet_id
-- TF_VAR_security_group_id
 
   
 ## Workflow Overview
@@ -20,12 +17,6 @@ The GitHub Actions workflow in this repository automates the process of building
 ## Getting Started
 
 To get started with this project, clone the repository to your local machine and ensure you have Docker, AWS CLI, and Terraform installed.
-
-### Prerequisites
-
-- Docker
-- AWS CLI configured with appropriate credentials
-- Terraform
 
 ### Installation
 
